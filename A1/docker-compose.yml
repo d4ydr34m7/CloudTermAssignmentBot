@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  container1:
+    image: shreya7187/assg15409:container1
+    container_name: container1
+    volumes:
+      - .:/etc/data/
+    ports:
+      - 5000:5000
+
+  container2: 
+    image: shreya7187/assg15409:container2
+    container_name: container2
+    volumes:
+      - .:/etc/data/
+    
+  
