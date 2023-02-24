@@ -5,7 +5,7 @@ const AWS = require("aws-sdk");
 const AmazonS3URI = require("amazon-s3-uri");
 const port=80;
 
-const ec2Ip = "54.157.154.1";
+const ec2Ip = "54.237.7.1";
 const bannerId = "B00909845";
 
 const s3 = new AWS.S3({
