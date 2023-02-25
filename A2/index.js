@@ -5,14 +5,14 @@ const AWS = require("aws-sdk");
 const AmazonS3URI = require("amazon-s3-uri");
 const port=80;
 
-const ec2Ip = "54.237.7.1";
+const ec2Ip = "54.84.175.104";
 const bannerId = "B00909845";
 
 const s3 = new AWS.S3({
-    aws_access_key_id: "ASIAW5OWUUL3BRQTYQOU",
-    aws_secret_access_key: "dR0IujMOVDo/uTTB1+F+VZIJAIKcUYpKxLV53fYe",
+    aws_access_key_id: "ASIAW5OWUUL3C7IG6VPQ",
+    aws_secret_access_key: "/w7kqUfrOWFg7GkBWsB70kWTwx26nTytfNoFioja",
     aws_session_token:
-      "FwoGZXIvYXdzEIX//////////wEaDFpa1Ris/+QfyyJZNyLAAXpJwVrAb5T5zPtWlVPYnIFN/wPOIreqGvGSSpqlMeY2rDd1djqg0Xq+Y2MNCaax+PJNYhGkbSM7IXi8OvzIm3Vy/XXpVq2wEbayOXv7LVw0z9HmgFsezT3ZhkqfojcuQgN4UqNv/yDViAsGef65SamKpmfj+ebud92ohXM5FuBKVYc1Mev308ouct+K3UIoehUNk9oRrw2RgXCfcDlHP4u4oeZV3Q3kmq7Dp+YWXqI9DoqVAItLW0GPFbeEytnVXyjQreSfBjItxLSM3B+aoWH41jRyzgfaoQeQ3tT2TyryIzlUiayFGjGXymYVTxQMloVO6I5e",
+      "FwoGZXIvYXdzEIz//////////wEaDBNuhhPOVmS/Ghhx5CLAAdiaOweCwGQniaxmC6XCOGqPfyLJ2uRS/wiQCQJjIsEsZ2/zlbhXmiEwW8Pxuyz2mPAbUELAA8WE9TcInbZ6UpzPXtAsesJzfggmfbGDhoBEV282uGkaMJDJ4Bd1lPcZsRwljCy4bvdt+xn2su9Yt4ShekLC0BNTXRnmkZ2l/QNSuBqgcLzXs+jVKXZ46YWdnia88xT9VliMMcULG520rhO8BSNS4tSGPndWJsLTo2Ma5BS/WQkJmMjIGN9BsKuItyiQ9eWfBjItJwLYeMgoponiXJXlWpM4Vu8OJJSyiveb3wOyOwb0N8fI9X84nrbcYJslKqoo",
   });
 
 
