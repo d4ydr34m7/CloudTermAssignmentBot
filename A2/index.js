@@ -18,7 +18,7 @@ const s3 = new AWS.S3({
 
 myApp.use(express.json());
 
-const jsonToSend={
+const jsonToSend={  
     banner: bannerId,
     ip:ec2Ip,
 };
@@ -67,6 +67,7 @@ const uploadToBucket = async (input_text) => {
 
 //https://stackoverflow.com/questions/34056133/append-string-to-a-text-file-nodejs-in-aws-lambda
 myApp.post("/appenddata", async (req, res) => {
+    var dataFromFile=null;
     var paramsToFetch = {
         Bucket: "assg2bucket",
         Key: "test.txt",
@@ -79,7 +80,7 @@ myApp.post("/appenddata", async (req, res) => {
         }
         else{
             console.log(data)
-            var dataFromFile = data.Body.toString('utf-8');
+            dataFromFile = data.Body.toString('utf-8');
             dataFromFile += req.body.data;
             res.status(200).send("Data appended to file in bucket");
         }
@@ -90,7 +91,7 @@ myApp.post("/appenddata", async (req, res) => {
             Body: dataFromFile,
           };
 
-          s3.putObject(params, function(err, data) {
+        s3.putObject(params, function(err, data) {
             if (err) {
                 console.log(err);
                 console.log("Error uploading to  bucket "+ params.Bucket);
@@ -99,7 +100,8 @@ myApp.post("/appenddata", async (req, res) => {
             }
 });
     })
-
+    await new Promise((r) => setTimeout(r,1000));
+    res.send(dataFromFile);
 })
 
 //https://github.com/frantz/amazon-s3-uri
