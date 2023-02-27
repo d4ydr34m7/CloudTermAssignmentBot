@@ -27,9 +27,9 @@ myApp.get("/start", async (req, res) => {
      try {
       var responseBody = await axios.post("http://52.91.127.198:8080/start", jsonToSend);
       console.log(responseBody)
-      return res.status(200).json({ success: "true", message: "Started" });
+      return res.status(200);
     } catch (error) {
-      return res.status(500).json({ message: "Internal Server Error." });
+      return res.status(500);
     }
   });
 
