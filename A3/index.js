@@ -25,7 +25,7 @@ app.post("/start", async (req, res) => {
   axios
     .post("http://44.202.179.158:8080", {
       banner: "B00909845",
-      ip: "34.224.94.144",
+      ip: "100.25.141.122 ",
     })
     .then(function (response) {
       console.log(response);
