@@ -23,9 +23,9 @@ app.listen(port, () => {
 //https://github.com/rzcoder/node-rsa
 app.post("/start", async (req, res) => {
   axios
-    .post("http://44.202.179.158:8080", {
+    .post("http://44.202.179.158:8080/start", {
       banner: "B00909845",
-      ip: "100.25.141.122 ",
+      ip: "100.25.141.122",
     })
     .then(function (response) {
       console.log(response);
