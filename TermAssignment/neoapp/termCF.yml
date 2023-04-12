@@ -1,0 +1,338 @@
+# https://github.com/aws-samples/startup-kit-templates/blob/master/templates/elastic-beanstalk.cfn.yml
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-kendra-index.html
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-function.html
+# https://dev.to/lubanasachin/cloudformation-lambda-with-http-api-gateway-3a66
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ecr-repository.html
+
+Parameters:
+  ApplicationName:
+    Description: "myApp"
+    Type: String
+
+  EnvironmentName:
+    Description: "dev"
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedValues:
+      - dev
+      - prod
+    ConstraintDescription: Specify either dev or prod
+
+Resources:
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: testbucketterm
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    Description: My S3 bucket for Kendra
+
+  MyS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MyS3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowKendraReadAccess
+            Effect: Allow
+            Principal:
+              Service: kendra.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:GetObjectAcl
+              - s3:GetObjectTagging
+              - s3:GetObjectVersion
+              - s3:GetObjectVersionAcl
+              - s3:GetObjectVersionTagging
+              - s3:ListBucket
+              - s3:ListBucketVersions
+            Resource:
+              - !Join ["", ["arn:aws:s3:::", !Ref MyS3Bucket]]
+              - !Join ["", ["arn:aws:s3:::", !Ref MyS3Bucket, "/*"]]
+
+  roleforKendra:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: kendra.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: KendraS3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::faqbucket2"
+                  - !Sub "arn:aws:s3:::faqbucket2/*"
+
+  
+  KendraIndex:
+    Type: AWS::Kendra::Index
+    Properties:
+      Name: myIndex
+      RoleArn: !GetAtt roleforKendra.Arn
+      Edition: DEVELOPER_EDITION
+      
+  KendraFAQ:
+    Type: AWS::Kendra::Faq
+    Properties:
+      Name: myFaq
+      IndexId: !Ref KendraIndex
+      S3Path:
+        Bucket: "faqbucket2"
+        Key: "qna.csv"
+      RoleArn: !GetAtt roleforKendra.Arn
+   
+
+  FetchResponses:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: fetchResponses
+      Runtime: python3.8
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          KENDRA_INDEX_ID: !Ref KendraIndex
+      Code:
+        ZipFile: |
+          import boto3
+          import urllib.parse
+          import requests
+          import json
+          import os
+
+          def lambda_handler(event, context):
+
+              kendra_client = boto3.client('kendra')
+              kendra_index_id = os.environ['KENDRA_INDEX_ID']
+              if 'inputTranscript' in event:
+                user_query = event['inputTranscript']
+              elif 'body' in event:
+                body = json.loads(event['body'])
+                if 'inputText' in body:
+                  user_query = body['inputText']
+                else:
+                  return {
+                  'statusCode': 400,
+                  'body': 'Missing inputText in request'
+                  }
+              else:
+                return {
+                'statusCode': 400,
+                'body': 'Missing inputTranscript'
+                 }
+
+              response = kendra_client.query(
+              IndexId=kendra_index_id,
+              QueryText=user_query,)
+
+              try:
+                answer = response['ResultItems'][0]['DocumentExcerpt']['Text']
+              
+              except IndexError:
+                google_search_api_key = 'AIzaSyAvMr51lTlwH0lEtgb3qeAA4fSmSmvsID4'
+                google_search_engine_id = 'c71fd930f8bd24114'
+                google_search_url = f"https://www.googleapis.com/customsearch/v1?key={google_search_api_key}&cx={google_search_engine_id}&q={urllib.parse.quote(user_query)}"
+              
+                search_response = requests.get(google_search_url)
+                search_data = search_response.json()
+
+                try:
+                  relevant_url = search_data['items'][0]['link']
+                  relevant_url = relevant_url.split('{{')[0]
+                  answer = f"Sorry, I don't have a response to your question. Please check this link for more information: {relevant_url}"
+                except (KeyError, IndexError):
+                  answer = "Sorry, I couldn't find a relevant link for your query."
+
+              return {
+                'dialogAction': {
+                  'type': 'Close',
+                  'fulfillmentState': 'Fulfilled',
+                  'message': {
+                    'contentType': 'PlainText',
+                    'content': answer
+                  }
+                }
+            }
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole  
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - kendra:Query
+                Resource: '*'
+
+  
+  MyRepository: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: "demoapp"
+      ImageScanningConfiguration: 
+        ScanOnPush: true
+
+  ApiGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: sendText
+      ProtocolType: HTTP
+      RouteSelectionExpression: $request.method $request.path
+
+  ApiGatewayIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ApiGateway
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FetchResponses.Arn}/invocations
+      PayloadFormatVersion: 2.0
+
+  ApiGatewayRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: POST /senddata
+      Target: !Sub integrations/${ApiGatewayIntegration}
+
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref FetchResponses
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/senddata
+
+  Application:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: !Ref ApplicationName
+
+  ConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref Application
+      SolutionStackName: "64bit Amazon Linux 2 v3.5.6 running Docker"
+      OptionSettings:
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        Value: SingleInstance
+
+      - Namespace: aws:elasticbeanstalk:environment:process:default
+        OptionName: ContainerPort
+        Value: "3000"
+
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: ServiceRole
+        Value: arn:aws:iam::561042011492:role/roleForBeanstalk
+
+      - Namespace: aws:elasticbeanstalk:environment:process:default
+        OptionName: PlatformBranchName
+        Value: docker
+
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: ServiceRole
+        Value: arn:aws:iam::561042011492:role/roleForBeanstalk
+
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: IamInstanceProfile
+        Value: !Ref AppInstanceProfile
+
+  Environment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      EnvironmentName: !Sub "${ApplicationName}-${EnvironmentName}"
+      ApplicationName: !Ref Application
+      TemplateName: !Ref ConfigurationTemplate
+    DependsOn:
+      - ConfigurationTemplate
+    
+
+  AppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  AppPolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: App
+      Roles:
+      - !Ref AppRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Action: "*"
+            Resource: "*"
+
+  AppInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref AppRole
+
+Outputs:
+  KendraIndexArn:
+    Description: The ARN of the Kendra index
+    Value: !GetAtt KendraIndex.Arn
+    Export:
+      Name: KendraIndexArn
+  
+  HttpApiUrl:
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/"
+
+
+  FetchResponsesArn:
+    Description: "The ARN of the Lambda function used for fulfillment"
+    Value: !GetAtt FetchResponses.Arn
+    Export:
+      Name: "FetchResponsesArn"
